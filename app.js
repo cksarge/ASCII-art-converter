@@ -624,24 +624,59 @@
 
   // ---------- Copy & download ----------
 
-  async function copyText(text, label) {
-    try {
-      await navigator.clipboard.writeText(text);
+  // Copy synchronously first, while still inside the click's user gesture. The async Clipboard API
+  // is refused when the document isn't focused or the page isn't a secure context, and by the time
+  // that rejection arrives Safari and Firefox no longer allow a fallback copy.
+  function copyText(text, label) {
+    if (copyInGesture(text)) {
       toast(label);
-    } catch {
-      // Fallback for browsers/contexts that block the async clipboard API.
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      ta.setAttribute('readonly', '');
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.append(ta);
-      ta.select();
-      const ok = document.execCommand('copy');
-      ta.remove();
-      toast(ok ? label : 'Copy failed. Select the text and copy it manually.');
+      return;
     }
+    if (!navigator.clipboard?.writeText) {
+      toast('Copy failed. Select the text and copy it manually.');
+      return;
+    }
+    navigator.clipboard.writeText(text).then(
+      () => toast(label),
+      () => toast('Copy failed. Select the text and copy it manually.'),
+    );
   }
+
+  function copyInGesture(text) {
+    const previousFocus = document.activeElement;
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.setAttribute('aria-hidden', 'true');
+    ta.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;padding:0;border:0;opacity:0;font-size:16px';
+    document.body.append(ta);
+    ta.focus({ preventScroll: true });
+    ta.select();
+    ta.setSelectionRange(0, text.length); // iOS ignores select() on its own
+    let ok = false;
+    try {
+      ok = document.execCommand('copy');
+    } catch {
+      ok = false;
+    }
+    ta.remove();
+    previousFocus?.focus?.({ preventScroll: true });
+    return ok;
+  }
+
+  // Cmd/Ctrl+C: with nothing selected, copy the whole piece; with part of the preview selected,
+  // copy it as plain text (otherwise browsers copy the colored spans as rich HTML).
+  document.addEventListener('copy', (e) => {
+    if (!result || !e.clipboardData) return;
+    const t = e.target;
+    if (t instanceof HTMLElement && (t.matches('input, textarea, select') || t.isContentEditable)) return;
+    const sel = document.getSelection();
+    const selected = sel && !sel.isCollapsed ? sel.toString() : '';
+    if (selected && !(sel.anchorNode && els.art.contains(sel.anchorNode))) return;
+    e.clipboardData.setData('text/plain', selected || plainText(result));
+    e.preventDefault();
+    if (!selected) toast(`Copied ${result.cols}×${result.rows} characters`);
+  });
 
   els.copyBtn.addEventListener('click', () => {
     if (result) copyText(plainText(result), `Copied ${result.cols}×${result.rows} characters`);
