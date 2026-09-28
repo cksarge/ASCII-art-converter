@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ASCII Art Converter</title>
+  <meta name="description" content="Turn any image into ASCII art in your browser. Nothing is uploaded — conversion happens locally.">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="theme-color" content="#111316">
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <h1><span class="logo" aria-hidden="true">@#:</span> ASCII Art Converter</h1>
+    <p class="tagline">Images become text. Everything runs in your browser, and nothing gets uploaded.</p>
+  </header>
+
+  <main class="layout">
+    <aside class="panel" aria-label="Settings">
+      <section class="group">
+        <h2>Image</h2>
+        <label class="drop" id="drop" for="file">
+          <img id="thumb" alt="" hidden>
+          <span class="drop-text" id="drop-text">
+            <strong>Choose an image</strong>
+            <span>or drag one here, or paste with <kbd class="mod">Ctrl</kbd>+<kbd>V</kbd></span>
+          </span>
+        </label>
+        <input type="file" id="file" accept="image/*" class="visually-hidden">
+        <div class="btn-row">
+          <button type="button" id="paste-btn" class="btn" hidden>Paste image</button>
+          <button type="button" id="sample-btn" class="btn">Use sample</button>
+        </div>
+      </section>
+
+      <section class="group">
+        <h2>Size</h2>
+        <div class="field">
+          <div class="field-head">
+            <label for="cols">Width (characters)</label>
+          </div>
+          <div class="range-row">
+            <input type="range" id="cols" data-key="cols" min="20" max="300" step="1">
+            <input type="number" id="cols-num" data-key="cols" min="20" max="300" step="1" aria-label="Width in characters">
+          </div>
+        </div>
+        <div class="field">
+          <div class="field-head">
+            <label for="aspect">Character aspect</label>
+            <span class="val" data-for="aspect" aria-hidden="true"></span>
+          </div>
+          <input type="range" id="aspect" data-key="aspect" min="0.3" max="1" step="0.05">
+          <p class="hint">Glyph width ÷ line height. Lower it if the output looks squashed.</p>
+        </div>
+      </section>
+
+      <section class="group">
+        <h2>Characters</h2>
+        <div class="field">
+          <label for="charset">Character set</label>
+          <select id="charset" data-key="charset">
+            <option value="standard">Standard</option>
+            <option value="detailed">Detailed (70 levels)</option>
+            <option value="simple">Simple</option>
+            <option value="blocks">Blocks ░▒▓█</option>
+            <option value="braille">Braille dots ⣿ (high-res)</option>
+            <option value="binary">Binary</option>
+            <option value="custom">Custom…</option>
+          </select>
+          <code class="ramp" id="ramp-preview" aria-label="Characters from light to dense"></code>
+        </div>
+        <div class="field" id="custom-row" hidden>
+          <label for="custom">Custom characters, sparse to dense</label>
+          <input type="text" id="custom" data-key="custom" spellcheck="false" autocomplete="off">
+        </div>
+      </section>
+
+      <section class="group">
+        <h2>Tone</h2>
+        <div class="field">
+          <div class="field-head">
+            <label for="brightness">Brightness</label>
+            <span class="val" data-for="brightness" aria-hidden="true"></span>
+          </div>
+          <input type="range" id="brightness" data-key="brightness" min="-100" max="100" step="1">
+        </div>
+        <div class="field">
+          <div class="field-head">
+            <label for="contrast">Contrast</label>
+            <span class="val" data-for="contrast" aria-hidden="true"></span>
+          </div>
+          <input type="range" id="contrast" data-key="contrast" min="-100" max="100" step="1">
+        </div>
+        <div class="field">
+          <label for="dither">Dithering</label>
+          <select id="dither" data-key="dither">
+            <option value="none">None</option>
+            <option value="floyd">Floyd–Steinberg</option>
+            <option value="ordered">Ordered (Bayer)</option>
+          </select>
+        </div>
+        <label class="check"><input type="checkbox" data-key="autoLevels"> Auto levels</label>
+        <label class="check"><input type="checkbox" data-key="invert"> Invert</label>
+      </section>
+
+      <section class="group">
+        <h2>Output</h2>
+        <fieldset class="field segmented">
+          <legend>Background you'll paste onto</legend>
+          <label><input type="radio" name="bg" value="dark" data-key="bg"><span>Dark</span></label>
+          <label><input type="radio" name="bg" value="light" data-key="bg"><span>Light</span></label>
+        </fieldset>
+        <label class="check"><input type="checkbox" data-key="color"> Color (preview, PNG &amp; HTML)</label>
+      </section>
+
+      <button type="button" id="reset-btn" class="btn btn-ghost">Reset settings</button>
+    </aside>
+
+    <section class="output" aria-label="Result">
+      <div class="toolbar">
+        <div class="zoom">
+          <label class="check"><input type="checkbox" data-key="fit"> Fit</label>
+          <label for="fontSize" class="visually-hidden">Font size</label>
+          <input type="range" id="fontSize" data-key="fontSize" min="2" max="24" step="1">
+          <span class="stats" id="stats"></span>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn btn-primary" id="copy-btn" disabled>Copy</button>
+          <button type="button" class="btn" id="copy-md-btn" disabled title="Wrapped in ``` so it stays monospaced in Discord, GitHub, Slack…">Copy as code block</button>
+          <span class="divider" aria-hidden="true"></span>
+          <button type="button" class="btn" id="txt-btn" disabled>.txt</button>
+          <button type="button" class="btn" id="png-btn" disabled>.png</button>
+          <button type="button" class="btn" id="html-btn" disabled>.html</button>
+        </div>
+      </div>
+
+      <div class="stage" id="stage">
+        <div class="empty" id="empty">
+          <pre class="empty-art" aria-hidden="true">
+   .-------------.
+   |  .:-=+*#%@  |
+   |  :=*#%@@@@  |
+   |  -+#@@@@@@  |
+   '-------------'</pre>
+          <p>Drop an image anywhere, paste one, or pick a file to get started.</p>
+          <button type="button" class="btn btn-primary" id="empty-sample-btn">Try the sample image</button>
+        </div>
+        <pre id="art" class="art" hidden aria-label="ASCII art output"></pre>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="drop-overlay" aria-hidden="true"><span>Drop the image to convert it</span></div>
+</body>
+</html>
